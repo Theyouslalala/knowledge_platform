@@ -1,11 +1,12 @@
 """Project API endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from ..models.project import Project
 from ..schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from .deps import CurrentUser, DatabaseSession
+from .utils import get_user_resource
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -32,25 +33,14 @@ async def list_projects(user: CurrentUser, db: DatabaseSession):
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(project_id: str, user: CurrentUser, db: DatabaseSession):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user.id)
-    )
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return await get_user_resource(db, Project, project_id, user.id)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str, update: ProjectUpdate, user: CurrentUser, db: DatabaseSession
 ):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user.id)
-    )
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_user_resource(db, Project, project_id, user.id)
 
     if update.name is not None:
         project.name = update.name
@@ -65,12 +55,7 @@ async def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(project_id: str, user: CurrentUser, db: DatabaseSession):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user.id)
-    )
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await get_user_resource(db, Project, project_id, user.id)
 
     project.status = "archived"
     await db.flush()

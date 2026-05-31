@@ -33,7 +33,8 @@ class ExecutionTracer:
 
     def start_trace(self, task_id: str):
         self._traces[task_id] = []
-        self._trim_tasks()
+        if len(self._traces) > self.MAX_TASKS:
+            self._trim_tasks()
 
     def record(self, task_id: str, event: TraceEvent):
         if task_id not in self._traces:

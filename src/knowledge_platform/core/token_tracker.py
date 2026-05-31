@@ -23,6 +23,7 @@ class TokenRecord:
 
 class TokenTracker:
     MAX_RECORDS = 10000
+    MAX_TASKS = 500
 
     def __init__(self):
         self._records: list[TokenRecord] = []
@@ -55,6 +56,11 @@ class TokenTracker:
 
         if len(self._records) > self.MAX_RECORDS:
             self._records = self._records[-self.MAX_RECORDS // 2 :]
+        if len(self._task_records) > self.MAX_TASKS:
+            keep = self.MAX_TASKS // 2
+            oldest = sorted(self._task_records.keys())[:-keep]
+            for key in oldest:
+                del self._task_records[key]
 
         return record
 

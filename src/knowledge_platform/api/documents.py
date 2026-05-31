@@ -12,11 +12,23 @@ from ..models.document import Document
 from ..models.project import Project
 from ..schemas.document import DocumentResponse
 from .deps import CurrentUser, DatabaseSession
+from .utils import get_user_resource
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE = 50 * 1024 * 1024
+
+_rag_pipeline = None
+
+
+def _get_rag_pipeline():
+    global _rag_pipeline
+    if _rag_pipeline is None:
+        from ..core.rag.pipeline import RAGPipeline
+
+        _rag_pipeline = RAGPipeline()
+    return _rag_pipeline
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -28,10 +40,9 @@ def _sanitize_filename(filename: str) -> str:
 
 async def _process_document_rag(document_id: str, file_path: str):
     """Background task: process document through RAG pipeline."""
+    doc = None
     async with async_session_factory() as db:
         try:
-            from ..core.rag.pipeline import RAGPipeline
-
             result = await db.execute(select(Document).where(Document.id == document_id))
             doc = result.scalar_one_or_none()
             if doc is None:
@@ -40,16 +51,17 @@ async def _process_document_rag(document_id: str, file_path: str):
             doc.status = "processing"
             await db.commit()
 
-            pipeline = RAGPipeline()
+            pipeline = _get_rag_pipeline()
             ingest_result = await pipeline.ingest(file_path)
 
             doc.chunk_count = ingest_result.get("chunks", 0)
             doc.status = "completed"
             await db.commit()
         except Exception as e:
-            doc.status = "failed"
-            doc.error_message = str(e)[:500]
-            await db.commit()
+            if doc is not None:
+                doc.status = "failed"
+                doc.error_message = str(e)[:500]
+                await db.commit()
 
 
 @router.post(
@@ -64,12 +76,7 @@ async def upload_document(
     db: DatabaseSession = None,
     background_tasks: BackgroundTasks = None,
 ):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user.id)
-    )
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    await get_user_resource(db, Project, project_id, user.id, resource_name="Project")
 
     safe_name = _sanitize_filename(file.filename)
     suffix = Path(safe_name).suffix.lower()
@@ -116,23 +123,12 @@ async def list_documents(project_id: str, user: CurrentUser, db: DatabaseSession
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(document_id: str, user: CurrentUser, db: DatabaseSession):
-    result = await db.execute(
-        select(Document).where(Document.id == document_id, Document.user_id == user.id)
-    )
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return doc
+    return await get_user_resource(db, Document, document_id, user.id)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(document_id: str, user: CurrentUser, db: DatabaseSession):
-    result = await db.execute(
-        select(Document).where(Document.id == document_id, Document.user_id == user.id)
-    )
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+    doc = await get_user_resource(db, Document, document_id, user.id)
 
     file_path = Path(doc.file_path)
     if file_path.exists():
