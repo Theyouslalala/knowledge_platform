@@ -20,7 +20,7 @@ class ChunkingStrategy(ABC):
 class FixedSizeChunker(ChunkingStrategy):
     def __init__(self, chunk_size: int = 512, overlap: int = 50):
         self.chunk_size = chunk_size
-        self.overlap = overlap
+        self.overlap = min(overlap, chunk_size - 1)
 
     def chunk(self, text: str, metadata: dict = None) -> list[Chunk]:
         metadata = metadata or {}
