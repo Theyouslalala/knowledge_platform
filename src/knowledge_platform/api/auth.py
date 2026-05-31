@@ -63,7 +63,9 @@ async def login(request: LoginRequest, db: DatabaseSession):
 async def refresh(request: RefreshRequest, db: DatabaseSession):
     payload = decode_token(request.refresh_token)
     if payload is None or payload.get("type") != "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        )
 
     user_id = payload.get("sub")
     result = await db.execute(select(User).where(User.id == user_id))

@@ -1,7 +1,10 @@
 """Unit tests for text chunking."""
 
-import pytest
-from src.knowledge_platform.core.rag.chunker import FixedSizeChunker, RecursiveChunker, SemanticChunker
+from src.knowledge_platform.core.rag.chunker import (
+    FixedSizeChunker,
+    RecursiveChunker,
+    SemanticChunker,
+)
 
 
 def test_fixed_size_chunker():

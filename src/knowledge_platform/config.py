@@ -1,6 +1,9 @@
 """Application configuration using Pydantic Settings."""
 
+import secrets
+from functools import lru_cache
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,9 +26,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/knowledge_platform.db"
 
     # Security
-    secret_key: str = "change-this-to-a-random-secret-key"
+    secret_key: str = ""
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+
+    # CORS
+    cors_origins: list[str] = ["http://localhost:7860", "http://localhost:8000"]
 
     # ChromaDB
     chroma_persist_dir: str = "./data/chroma"
@@ -42,6 +48,11 @@ class Settings(BaseSettings):
     data_dir: Path = base_dir / "data"
     upload_dir: Path = data_dir / "uploads"
 
+    def model_post_init(self, __context) -> None:
+        if not self.secret_key:
+            object.__setattr__(self, "secret_key", secrets.token_hex(32))
 
+
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()

@@ -26,10 +26,7 @@ class LongTermMemory(MemoryStore):
         try:
             query_embedding = await self._embedder.embed(query)
             results = await self._vector_store.search(query_embedding, top_k=k)
-            return [
-                MemoryEntry(content=r["text"], metadata=r.get("metadata", {}))
-                for r in results
-            ]
+            return [MemoryEntry(content=r["text"], metadata=r.get("metadata", {})) for r in results]
         except Exception:
             return self._fallback_search(query, k)
 

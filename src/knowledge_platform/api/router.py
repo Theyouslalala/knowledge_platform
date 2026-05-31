@@ -3,12 +3,12 @@
 from fastapi import APIRouter
 
 from .auth import router as auth_router
-from .users import router as users_router
+from .conversation_search import router as search_router
+from .data_export import router as export_router
+from .documents import router as documents_router
 from .projects import router as projects_router
 from .tasks import router as tasks_router
-from .documents import router as documents_router
-from .data_export import router as export_router
-from .conversation_search import router as search_router
+from .users import router as users_router
 
 api_router = APIRouter(prefix="/api/v1")
 

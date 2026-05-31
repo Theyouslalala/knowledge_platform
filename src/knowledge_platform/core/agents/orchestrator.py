@@ -1,7 +1,13 @@
 """Agent orchestrator using LangGraph StateGraph."""
 
+import time
+
 from langgraph.graph import END, StateGraph
 
+from ..execution_tracer import tracer as execution_tracer
+from ..tools.calculator import CalculatorTool
+from ..tools.rag_tool import RAGRetrievalTool
+from ..tools.web_search import WebSearchTool
 from .analyst import AnalystAgent
 from .critic import CriticAgent
 from .llm_provider import get_llm
@@ -9,9 +15,6 @@ from .planner import PlannerAgent
 from .researcher import ResearchAgent
 from .state import AgentState
 from .writer import WriterAgent
-from ..tools.calculator import CalculatorTool
-from ..tools.rag_tool import RAGRetrievalTool
-from ..tools.web_search import WebSearchTool
 
 
 class AgentOrchestrator:
@@ -67,22 +70,36 @@ class AgentOrchestrator:
             return "approve"
         return "revise"
 
+    async def _run_agent_with_tracing(self, agent_name: str, state: AgentState) -> dict:
+        task_id = state.get("task_id", "unknown")
+        execution_tracer.agent_start(task_id, agent_name)
+        start = time.monotonic()
+        try:
+            result = await self.agents[agent_name].execute(state)
+            duration_ms = (time.monotonic() - start) * 1000
+            execution_tracer.agent_end(task_id, agent_name, duration_ms=duration_ms)
+            return result
+        except Exception as e:
+            execution_tracer.error(task_id, agent_name, str(e))
+            raise
+
     async def _run_planner(self, state: AgentState) -> dict:
-        return await self.agents["planner"].execute(state)
+        return await self._run_agent_with_tracing("planner", state)
 
     async def _run_researcher(self, state: AgentState) -> dict:
-        return await self.agents["researcher"].execute(state)
+        return await self._run_agent_with_tracing("researcher", state)
 
     async def _run_analyst(self, state: AgentState) -> dict:
-        return await self.agents["analyst"].execute(state)
+        return await self._run_agent_with_tracing("analyst", state)
 
     async def _run_writer(self, state: AgentState) -> dict:
-        return await self.agents["writer"].execute(state)
+        return await self._run_agent_with_tracing("writer", state)
 
     async def _run_critic(self, state: AgentState) -> dict:
-        return await self.agents["critic"].execute(state)
+        return await self._run_agent_with_tracing("critic", state)
 
     async def run(self, task_id: str, query: str, max_iterations: int = 3) -> AgentState:
+        execution_tracer.start_trace(task_id)
         initial_state: AgentState = {
             "task_id": task_id,
             "user_query": query,

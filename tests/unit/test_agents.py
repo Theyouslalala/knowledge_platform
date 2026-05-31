@@ -1,6 +1,5 @@
 """Unit tests for agent system."""
 
-import pytest
 from src.knowledge_platform.core.agents.state import AgentState
 
 

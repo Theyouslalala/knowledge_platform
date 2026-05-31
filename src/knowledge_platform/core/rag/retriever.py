@@ -16,20 +16,23 @@ class BM25Index:
         self._documents: list[str] = []
         self._metadatas: list[dict] = []
         self._bm25 = None
+        self._dirty = False
 
     def add(self, documents: list[str], metadatas: list[dict] = None):
         self._documents.extend(documents)
         self._metadatas.extend(metadatas or [{}] * len(documents))
-        self._rebuild()
+        self._dirty = True
 
-    def _rebuild(self):
-        if self._documents:
+    def _ensure_built(self):
+        if self._dirty and self._documents:
             from rank_bm25 import BM25Okapi
 
             tokenized = [doc.lower().split() for doc in self._documents]
             self._bm25 = BM25Okapi(tokenized)
+            self._dirty = False
 
     def search(self, query: str, top_k: int = 10) -> list[RetrievalResult]:
+        self._ensure_built()
         if not self._bm25 or not self._documents:
             return []
 
@@ -49,7 +52,9 @@ class BM25Index:
 
 
 class HybridRetriever:
-    def __init__(self, vector_store, embedder, bm25_index: BM25Index = None, k: int = 20, rrf_k: int = 60):
+    def __init__(
+        self, vector_store, embedder, bm25_index: BM25Index = None, k: int = 20, rrf_k: int = 60
+    ):
         self.vector_store = vector_store
         self.embedder = embedder
         self.bm25_index = bm25_index or BM25Index()

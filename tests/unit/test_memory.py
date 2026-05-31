@@ -1,9 +1,10 @@
 """Unit tests for memory system."""
 
 import pytest
-from src.knowledge_platform.core.memory.short_term import ShortTermMemory
+
 from src.knowledge_platform.core.memory.base import MemoryEntry
 from src.knowledge_platform.core.memory.manager import MemoryManager
+from src.knowledge_platform.core.memory.short_term import ShortTermMemory
 
 
 @pytest.mark.asyncio

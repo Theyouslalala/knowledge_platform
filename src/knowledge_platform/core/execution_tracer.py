@@ -25,16 +25,28 @@ class TraceEvent:
 
 
 class ExecutionTracer:
+    MAX_EVENTS_PER_TASK = 1000
+    MAX_TASKS = 500
+
     def __init__(self):
         self._traces: dict[str, list[TraceEvent]] = {}
 
     def start_trace(self, task_id: str):
         self._traces[task_id] = []
+        self._trim_tasks()
 
     def record(self, task_id: str, event: TraceEvent):
         if task_id not in self._traces:
             self._traces[task_id] = []
         self._traces[task_id].append(event)
+        if len(self._traces[task_id]) > self.MAX_EVENTS_PER_TASK:
+            self._traces[task_id] = self._traces[task_id][-self.MAX_EVENTS_PER_TASK // 2 :]
+
+    def _trim_tasks(self):
+        if len(self._traces) > self.MAX_TASKS:
+            oldest = sorted(self._traces.keys())[: len(self._traces) - self.MAX_TASKS // 2]
+            for key in oldest:
+                del self._traces[key]
 
     def agent_start(self, task_id: str, agent_name: str):
         self.record(

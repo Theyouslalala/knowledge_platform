@@ -1,7 +1,7 @@
 """Agent state definition for LangGraph workflow."""
 
-from typing import Annotated, Literal, TypedDict
 import operator
+from typing import Annotated, Literal, TypedDict
 
 
 class AgentMessage(TypedDict):

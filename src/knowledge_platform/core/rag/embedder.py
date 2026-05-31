@@ -5,17 +5,14 @@ from abc import ABC, abstractmethod
 
 class BaseEmbedder(ABC):
     @abstractmethod
-    async def embed(self, text: str) -> list[float]:
-        ...
+    async def embed(self, text: str) -> list[float]: ...
 
     @abstractmethod
-    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        ...
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
 
     @property
     @abstractmethod
-    def dimension(self) -> int:
-        ...
+    def dimension(self) -> int: ...
 
 
 class OpenAIEmbedder(BaseEmbedder):
@@ -42,8 +39,13 @@ class OpenAIEmbedder(BaseEmbedder):
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         client = self._get_client()
-        response = await client.embeddings.create(input=texts, model=self._model)
-        return [item.embedding for item in response.data]
+        batch_size = 100
+        all_embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            response = await client.embeddings.create(input=batch, model=self._model)
+            all_embeddings.extend(item.embedding for item in response.data)
+        return all_embeddings
 
     @property
     def dimension(self) -> int:
@@ -67,7 +69,12 @@ class LocalEmbedder(BaseEmbedder):
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         self._load_model()
-        return self._model.encode(texts).tolist()
+        batch_size = 64
+        all_embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            all_embeddings.extend(self._model.encode(batch).tolist())
+        return all_embeddings
 
     @property
     def dimension(self) -> int:

@@ -1,11 +1,12 @@
 """Shared test fixtures."""
 
-import pytest
 import asyncio
-from httpx import AsyncClient, ASGITransport
 
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from src.knowledge_platform.infrastructure.database import Base, engine
 from src.knowledge_platform.main import app
-from src.knowledge_platform.infrastructure.database import init_db, engine, Base
 
 
 @pytest.fixture(scope="session")

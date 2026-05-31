@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-
 MODEL_PRICING = {
     "gpt-4o": {"input": 2.50 / 1_000_000, "output": 10.00 / 1_000_000},
     "gpt-4o-mini": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
@@ -23,6 +22,8 @@ class TokenRecord:
 
 
 class TokenTracker:
+    MAX_RECORDS = 10000
+
     def __init__(self):
         self._records: list[TokenRecord] = []
         self._task_records: dict[str, list[TokenRecord]] = {}
@@ -51,6 +52,9 @@ class TokenTracker:
         if task_id not in self._task_records:
             self._task_records[task_id] = []
         self._task_records[task_id].append(record)
+
+        if len(self._records) > self.MAX_RECORDS:
+            self._records = self._records[-self.MAX_RECORDS // 2 :]
 
         return record
 

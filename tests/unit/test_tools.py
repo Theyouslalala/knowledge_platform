@@ -1,6 +1,7 @@
 """Unit tests for tool system."""
 
 import pytest
+
 from src.knowledge_platform.core.tools.calculator import CalculatorTool
 from src.knowledge_platform.core.tools.code_executor import CodeExecutorTool
 from src.knowledge_platform.core.tools.registry import ToolRegistry

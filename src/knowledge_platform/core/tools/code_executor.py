@@ -44,7 +44,9 @@ class CodeExecutorTool(BaseTool):
             else:
                 return ToolResult(success=False, output=f"Error:\n{result.stderr}")
         except subprocess.TimeoutExpired:
-            return ToolResult(success=False, output=f"Execution timed out after {self.TIMEOUT_SECONDS}s")
+            return ToolResult(
+                success=False, output=f"Execution timed out after {self.TIMEOUT_SECONDS}s"
+            )
         except Exception as e:
             return ToolResult(success=False, output=f"Error: {e}")
         finally:

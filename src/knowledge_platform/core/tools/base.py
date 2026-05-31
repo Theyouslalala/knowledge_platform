@@ -18,12 +18,11 @@ class BaseTool(ABC):
     parameters_schema: dict = {}
 
     @abstractmethod
-    async def execute(self, **kwargs) -> ToolResult:
-        ...
+    async def execute(self, **kwargs) -> ToolResult: ...
 
     def to_langchain_tool(self):
         from langchain_core.tools import StructuredTool
-        from pydantic import BaseModel, create_model
+        from pydantic import create_model
 
         fields = {}
         for param_name, param_info in self.parameters_schema.get("properties", {}).items():
@@ -32,7 +31,7 @@ class BaseTool(ABC):
             default = ... if required else None
             fields[param_name] = (param_type, default)
 
-        ArgsSchema = create_model(f"{self.name}Args", **fields) if fields else None
+        args_schema = create_model(f"{self.name}Args", **fields) if fields else None
 
         async def _func(**kwargs):
             result = await self.execute(**kwargs)
@@ -41,6 +40,6 @@ class BaseTool(ABC):
         return StructuredTool(
             name=self.name,
             description=self.description,
-            args_schema=ArgsSchema,
+            args_schema=args_schema,
             coroutine=_func,
         )

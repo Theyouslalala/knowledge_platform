@@ -13,8 +13,7 @@ class Chunk:
 
 class ChunkingStrategy(ABC):
     @abstractmethod
-    def chunk(self, text: str, metadata: dict = None) -> list[Chunk]:
-        ...
+    def chunk(self, text: str, metadata: dict = None) -> list[Chunk]: ...
 
 
 class FixedSizeChunker(ChunkingStrategy):
@@ -46,11 +45,19 @@ class RecursiveChunker(ChunkingStrategy):
 
     def __init__(self, chunk_size: int = 512, overlap: int = 50):
         self.chunk_size = chunk_size
-        self.overlap = overlap
+        self.overlap = min(overlap, chunk_size - 1)
 
     def chunk(self, text: str, metadata: dict = None) -> list[Chunk]:
         metadata = metadata or {}
         raw_chunks = self._split_recursive(text)
+
+        if self.overlap > 0 and len(raw_chunks) > 1:
+            overlapped = [raw_chunks[0]]
+            for i in range(1, len(raw_chunks)):
+                prev_tail = raw_chunks[i - 1][-self.overlap :]
+                overlapped.append(prev_tail + raw_chunks[i])
+            raw_chunks = overlapped
+
         chunks = []
         for i, content in enumerate(raw_chunks):
             if content.strip():

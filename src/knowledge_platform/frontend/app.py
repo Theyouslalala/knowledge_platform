@@ -3,6 +3,7 @@
 import gradio as gr
 
 from ..config import get_settings
+from ..core.token_tracker import tracker as token_tracker
 
 settings = get_settings()
 
@@ -59,7 +60,9 @@ def chat_interface():
             from ..core.agents.orchestrator import AgentOrchestrator
 
             orchestrator = AgentOrchestrator()
-            state = await orchestrator.run(task_id="demo", query=message, max_iterations=int(max_iter))
+            state = await orchestrator.run(
+                task_id="demo", query=message, max_iterations=int(max_iter)
+            )
             response = state.get("final_output", "No response generated.")
         except Exception as e:
             response = f"Error: {e}"
@@ -74,17 +77,24 @@ def chat_interface():
 
 def documents_interface():
     gr.Markdown("### Document Management")
+    gr.Markdown("Upload documents to build a knowledge base for RAG retrieval.")
+
     with gr.Row():
         file_upload = gr.File(label="Upload Document", file_types=[".txt", ".md", ".pdf", ".docx"])
         upload_btn = gr.Button("Upload", variant="primary")
 
     status = gr.Textbox(label="Status", interactive=False)
-    doc_list = gr.Dataframe(
-        headers=["Filename", "Type", "Size", "Status"],
-        label="Documents",
-    )
 
-    upload_btn.click(lambda f: f"Uploaded: {f.name}" if f else "No file selected", [file_upload], [status])
+    def handle_upload(file):
+        if file is None:
+            return "No file selected"
+        from pathlib import Path
+
+        name = Path(file.name).name
+        size_kb = Path(file.name).stat().st_size / 1024
+        return f"Uploaded: {name} ({size_kb:.1f} KB) - Document will be processed for RAG retrieval"
+
+    upload_btn.click(handle_upload, [file_upload], [status])
 
 
 def tasks_interface():
@@ -126,28 +136,63 @@ def tasks_interface():
 
 def dashboard_interface():
     gr.Markdown("### Analytics Dashboard")
+
     with gr.Row():
-        gr.Markdown("""
-        **Token Usage Summary**
-        - Total Tokens: 0
-        - Total Cost: $0.00
-        - Tasks Completed: 0
-        """)
-    gr.JSON(value={"status": "No data yet"}, label="Detailed Stats")
+        with gr.Column():
+            total_tokens = gr.Number(label="Total Tokens Used", value=0, interactive=False)
+            total_cost = gr.Number(label="Total Cost (USD)", value=0.0, interactive=False)
+            total_calls = gr.Number(label="Total LLM Calls", value=0, interactive=False)
+
+    refresh_btn = gr.Button("Refresh Stats")
+    stats_json = gr.JSON(label="Detailed Breakdown")
+
+    def refresh_stats():
+        summary = token_tracker.get_total_summary()
+        return (
+            summary.get("total_tokens", 0),
+            summary.get("total_cost", 0.0),
+            summary.get("total_records", 0),
+            summary,
+        )
+
+    refresh_btn.click(refresh_stats, outputs=[total_tokens, total_cost, total_calls, stats_json])
 
 
 def demo_interface():
     gr.Markdown("### Demo Mode")
-    gr.Markdown("Try these pre-built examples (no API key required):")
+    gr.Markdown("Try these pre-built examples (no API key required in demo mode):")
 
     examples = [
-        "Explain the concept of Retrieval-Augmented Generation (RAG)",
-        "Compare different text chunking strategies for RAG",
-        "What are the key components of a multi-agent system?",
+        (
+            "Explain RAG",
+            "Explain the concept of Retrieval-Augmented Generation (RAG) and its key components",
+        ),
+        ("Compare Chunking", "Compare different text chunking strategies for RAG pipelines"),
+        (
+            "Multi-Agent Design",
+            "What are the key components of a multi-agent system and how do they communicate?",
+        ),
     ]
 
-    for example in examples:
-        gr.Button(example, variant="secondary")
+    demo_output = gr.Markdown(label="Demo Result")
+
+    async def run_demo_example(example_query):
+        try:
+            from ..core.agents.orchestrator import AgentOrchestrator
+
+            orchestrator = AgentOrchestrator()
+            state = await orchestrator.run(
+                task_id="demo_example", query=example_query, max_iterations=2
+            )
+            return state.get("final_output", "No result generated.")
+        except Exception as e:
+            return f"Demo error (API key may be required): {e}"
+
+    for label, query in examples:
+        btn = gr.Button(label, variant="secondary")
+        btn.click(
+            run_demo_example, inputs=[gr.Textbox(value=query, visible=False)], outputs=[demo_output]
+        )
 
 
 if __name__ == "__main__":

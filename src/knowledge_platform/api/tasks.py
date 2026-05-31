@@ -2,18 +2,48 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 
-from ..models.task import Task
-from ..schemas.task import TaskCreate, TaskResponse, TaskUpdate
-from .deps import CurrentUser, DatabaseSession
+from ..infrastructure.database import async_session_factory
 from ..models.project import Project
+from ..models.task import Task
+from ..schemas.task import TaskCreate, TaskResponse
+from .deps import CurrentUser, DatabaseSession
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-@router.post("/projects/{project_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def _execute_task_background(task_id: str):
+    """Run agent orchestrator in background without blocking the event loop."""
+    async with async_session_factory() as db:
+        try:
+            result = await db.execute(select(Task).where(Task.id == task_id))
+            task = result.scalar_one_or_none()
+            if task is None:
+                return
+
+            from ..core.agents.orchestrator import AgentOrchestrator
+
+            orchestrator = AgentOrchestrator()
+            state = await orchestrator.run(task_id=task.id, query=task.title)
+
+            task.result = state.get("final_output", "")
+            task.status = "completed"
+            task.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+        except Exception as e:
+            task.status = "failed"
+            task.error_message = str(e)
+            task.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+
+
+@router.post(
+    "/projects/{project_id}/tasks",
+    response_model=TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_task(project_id: str, request: TaskCreate, user: CurrentUser, db: DatabaseSession):
     result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == user.id)
@@ -54,7 +84,9 @@ async def get_task(task_id: str, user: CurrentUser, db: DatabaseSession):
 
 
 @router.post("/{task_id}/execute", response_model=TaskResponse)
-async def execute_task(task_id: str, user: CurrentUser, db: DatabaseSession):
+async def execute_task(
+    task_id: str, user: CurrentUser, db: DatabaseSession, background_tasks: BackgroundTasks
+):
     result = await db.execute(select(Task).where(Task.id == task_id, Task.user_id == user.id))
     task = result.scalar_one_or_none()
     if task is None:
@@ -64,19 +96,5 @@ async def execute_task(task_id: str, user: CurrentUser, db: DatabaseSession):
     task.started_at = datetime.now(timezone.utc)
     await db.flush()
 
-    try:
-        from ..core.agents.orchestrator import AgentOrchestrator
-
-        orchestrator = AgentOrchestrator()
-        state = await orchestrator.run(task_id=task.id, query=task.title)
-
-        task.result = state.get("final_output", "")
-        task.status = "completed"
-        task.completed_at = datetime.now(timezone.utc)
-    except Exception as e:
-        task.status = "failed"
-        task.error_message = str(e)
-        task.completed_at = datetime.now(timezone.utc)
-
-    await db.flush()
+    background_tasks.add_task(_execute_task_background, task.id)
     return task
