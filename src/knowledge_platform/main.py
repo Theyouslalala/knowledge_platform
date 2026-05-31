@@ -11,6 +11,7 @@ from .infrastructure.database import init_db
 from .infrastructure.exceptions import AppError
 from .infrastructure.health import router as health_router
 from .infrastructure.logging import setup_logging
+from .api.router import api_router
 
 settings = get_settings()
 
@@ -38,6 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, tags=["Health"])
+app.include_router(api_router)
 
 
 @app.exception_handler(AppError)
