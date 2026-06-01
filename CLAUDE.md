@@ -75,6 +75,7 @@ Planner → Researcher → Analyst → Writer → Critic
 - `AgentState` (TypedDict) is shared across all nodes; `messages` uses `operator.add` reducer
 - `max_iterations` prevents infinite reflection loops
 - LLM tier: `"full"` (gpt-4o) for Planner/Critic, `"mini"` (gpt-4o-mini) for specialists
+- `get_orchestrator()` in `core/agents/orchestrator.py` is the lazy singleton entry point
 
 ### RAG Pipeline
 
@@ -89,10 +90,13 @@ Three-stage retrieval:
 
 - **Config**: Single `Settings` class in `config.py` loaded from `.env` via pydantic-settings
 - **DI**: `DatabaseSession` and `CurrentUser` are `Annotated` type aliases in `api/deps.py`
-- **ORM**: All models inherit `BaseModel` (UUID string PK, `created_at`/`updated_at`). Relationships use `lazy="selectin"`
+- **ORM**: All models inherit `BaseModel` (UUID string PK, `created_at`/`updated_at`). Relationships use `lazy="raise"` (async-safe, prevents implicit loading)
 - **Tools**: `BaseTool` ABC with `to_langchain_tool()` bridge. `ToolRegistry` is a class-level singleton
 - **Exceptions**: `AppError` base → typed subclasses. Global handler returns `{"error": code, "message": msg}`
 - **LLM Provider**: `LLMProvider` class caches instances by tier. `get_llm("mini")` / `get_llm("full")`
+- **Resource auth**: `api/utils.py:get_user_resource(db, Model, id, user_id)` verifies ownership and raises 404
+- **Pagination**: `schemas/common.py:PaginatedResponse[T]` wraps list endpoints with `items`, `total`, `page`, `page_size`
+- **Async sync calls**: Use `asyncio.to_thread()` for synchronous I/O (file ops, model loading, subprocess) to avoid blocking the event loop
 
 ## Environment Setup
 
