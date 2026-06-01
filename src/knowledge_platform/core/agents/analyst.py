@@ -7,7 +7,9 @@ from .state import AgentState
 
 class AnalystAgent(BaseAgent):
     def __init__(self, llm, tools: list = None):
-        super().__init__(name="analyst", llm=llm, tools=tools, system_prompt=ANALYST_PROMPT)
+        super().__init__(
+            name="analyst", llm=llm, tools=tools, system_prompt=ANALYST_PROMPT
+        )
 
     async def execute(self, state: AgentState) -> dict:
         research = "\n".join(state.get("research_results", []))
@@ -18,14 +20,7 @@ class AnalystAgent(BaseAgent):
             previous_analysis=state.get("analysis", ""),
         )
 
-        tool_results = []
-        for tool in self.tools:
-            try:
-                result = await tool.execute(expression=research[:100])
-                if result.success:
-                    tool_results.append(f"[{tool.name}] {result.output}")
-            except Exception:
-                pass
+        tool_results = await self._run_tools(query=research[:200])
 
         context = prompt
         if tool_results:
@@ -45,3 +40,4 @@ class AnalystAgent(BaseAgent):
                 }
             ],
         }
+

@@ -1,7 +1,7 @@
 """Project API endpoints."""
 
-from fastapi import APIRouter, status
-from sqlalchemy import select
+from fastapi import APIRouter, Query, status
+from sqlalchemy import func, select
 
 from ..models.project import Project
 from ..schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
@@ -23,12 +23,35 @@ async def create_project(request: ProjectCreate, user: CurrentUser, db: Database
     return project
 
 
-@router.get("", response_model=list[ProjectResponse])
-async def list_projects(user: CurrentUser, db: DatabaseSession):
-    result = await db.execute(
-        select(Project).where(Project.user_id == user.id, Project.status != "archived")
+@router.get("")
+async def list_projects(
+    user: CurrentUser,
+    db: DatabaseSession,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    offset = (page - 1) * page_size
+    count_result = await db.execute(
+        select(func.count()).select_from(Project).where(
+            Project.user_id == user.id, Project.status != "archived"
+        )
     )
-    return result.scalars().all()
+    total = count_result.scalar() or 0
+
+    result = await db.execute(
+        select(Project)
+        .where(Project.user_id == user.id, Project.status != "archived")
+        .offset(offset)
+        .limit(page_size)
+    )
+    items = result.scalars().all()
+
+    return {
+        "items": [ProjectResponse.model_validate(i) for i in items],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

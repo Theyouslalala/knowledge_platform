@@ -1,5 +1,6 @@
 """Base agent abstraction."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -18,5 +19,29 @@ class BaseAgent(ABC):
         """Execute the agent and return state updates."""
         ...
 
-    def _build_tool_map(self) -> dict:
-        return {getattr(t, "name", str(i)): t for i, t in enumerate(self.tools)}
+    async def _run_tools(self, **kwargs) -> list[str]:
+        async def _run_one(tool):
+            try:
+                tool_kwargs = self._resolve_tool_kwargs(tool, kwargs)
+                result = await tool.execute(**tool_kwargs)
+                status = "OK" if result.success else "FAILED"
+                return f"[{tool.name}] {status}: {result.output}"
+            except Exception as e:
+                return f"[{tool.name}] Error: {e}"
+
+        results = await asyncio.gather(*[_run_one(t) for t in self.tools])
+        return list(results)
+
+    @staticmethod
+    def _resolve_tool_kwargs(tool, kwargs: dict) -> dict:
+        if not kwargs:
+            return {}
+        schema = getattr(tool, "parameters_schema", None) or {}
+        required = schema.get("required", [])
+        if not required:
+            return kwargs
+        primary = required[0]
+        if primary in kwargs:
+            return kwargs
+        value = next(iter(kwargs.values()), "")
+        return {primary: value}

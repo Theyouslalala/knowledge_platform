@@ -1,5 +1,6 @@
 """Cross-encoder reranker."""
 
+import asyncio
 from dataclasses import dataclass
 
 
@@ -21,22 +22,25 @@ class CrossEncoderReranker:
 
             self._model = CrossEncoder(self._model_name)
 
-    def rerank(self, query: str, documents: list, top_k: int = 5) -> list[RerankerResult]:
+    async def rerank(self, query: str, documents: list, top_k: int = 5) -> list[RerankerResult]:
         if not documents:
             return []
 
-        self._load_model()
+        if self._model is None:
+            await asyncio.to_thread(self._load_model)
 
-        pairs = [(query, doc.content if hasattr(doc, "content") else str(doc)) for doc in documents]
-        scores = self._model.predict(pairs)
+        pairs = [(query, getattr(doc, "content", str(doc))) for doc in documents]
+        scores = await asyncio.to_thread(self._model.predict, pairs)
 
         scored_docs = list(zip(documents, scores))
         scored_docs.sort(key=lambda x: x[1], reverse=True)
 
         results = []
         for doc, score in scored_docs[:top_k]:
-            content = doc.content if hasattr(doc, "content") else str(doc)
-            metadata = doc.metadata if hasattr(doc, "metadata") else {}
-            results.append(RerankerResult(content=content, score=float(score), metadata=metadata))
+            results.append(RerankerResult(
+                content=getattr(doc, "content", str(doc)),
+                score=float(score),
+                metadata=getattr(doc, "metadata", {}),
+            ))
 
         return results

@@ -114,11 +114,13 @@ class RAGPipeline:
                 return []
 
         if use_expansion:
+            import asyncio as _asyncio
+
             queries = await self.query_expander.expand(query)
-            all_results = []
-            for q in queries:
-                results = await self.retriever.retrieve(q, top_k=top_k)
-                all_results.extend(results)
+            results_lists = await _asyncio.gather(
+                *[self.retriever.retrieve(q, top_k=top_k) for q in queries]
+            )
+            all_results = [r for sublist in results_lists for r in sublist]
 
             seen = set()
             unique = []
@@ -131,7 +133,7 @@ class RAGPipeline:
         else:
             results = await self.retriever.retrieve(query, top_k=top_k)
 
-        results = self.reranker.rerank(query, results, top_k=top_k)
+        results = await self.reranker.rerank(query, results, top_k=top_k)
         results = await self.compressor.compress(query, results)
 
         return results

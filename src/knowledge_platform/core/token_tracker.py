@@ -57,9 +57,9 @@ class TokenTracker:
         if len(self._records) > self.MAX_RECORDS:
             self._records = self._records[-self.MAX_RECORDS // 2 :]
         if len(self._task_records) > self.MAX_TASKS:
-            keep = self.MAX_TASKS // 2
-            oldest = sorted(self._task_records.keys())[:-keep]
-            for key in oldest:
+            keys = list(self._task_records.keys())
+            to_remove = len(keys) - self.MAX_TASKS // 2
+            for key in keys[:to_remove]:
                 del self._task_records[key]
 
         return record

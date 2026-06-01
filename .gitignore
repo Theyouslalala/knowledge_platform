@@ -35,4 +35,4 @@ logs/
 
 # Model cache
 .cache/
-models/
+/models/

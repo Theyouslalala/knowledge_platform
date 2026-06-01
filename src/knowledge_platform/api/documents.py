@@ -88,12 +88,14 @@ async def upload_document(
     upload_dir.mkdir(parents=True, exist_ok=True)
     file_path = upload_dir / f"{uuid.uuid4().hex}{suffix}"
 
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large")
-
+    total_size = 0
     with open(file_path, "wb") as f:
-        f.write(content)
+        while chunk := await file.read(65536):
+            total_size += len(chunk)
+            if total_size > MAX_FILE_SIZE:
+                file_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail="File too large")
+            f.write(chunk)
 
     doc = Document(
         project_id=project_id,
@@ -101,7 +103,7 @@ async def upload_document(
         filename=safe_name,
         file_path=str(file_path),
         file_type=suffix.lstrip("."),
-        file_size_bytes=len(content),
+        file_size_bytes=total_size,
         status="pending",
     )
     db.add(doc)

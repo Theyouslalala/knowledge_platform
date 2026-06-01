@@ -1,5 +1,6 @@
 """Document loading and parsing."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,22 +22,30 @@ class DocumentProcessor:
         if suffix not in self.SUPPORTED_TYPES:
             raise ValueError(f"Unsupported file type: {suffix}")
 
-        if suffix in (".txt", ".md"):
-            content = path.read_text(encoding="utf-8")
-        elif suffix == ".pdf":
-            content = self._read_pdf(path)
-        elif suffix == ".docx":
-            content = self._read_docx(path)
-        else:
-            content = path.read_text(encoding="utf-8")
+        def _read_and_stat():
+            if suffix in (".txt", ".md"):
+                c = path.read_text(encoding="utf-8")
+            elif suffix == ".pdf":
+                c = self._read_pdf(path)
+            elif suffix == ".docx":
+                c = self._read_docx(path)
+            else:
+                c = path.read_text(encoding="utf-8")
+            return c, path.stat()
 
+        content, stat = await asyncio.to_thread(_read_and_stat)
         return ProcessedDocument(
             content=content,
-            metadata={"filename": path.name, "file_type": suffix, "file_size": path.stat().st_size},
+            metadata={
+                "filename": path.name,
+                "file_type": suffix,
+                "file_size": stat.st_size,
+            },
             file_type=suffix,
         )
 
-    def _read_pdf(self, path: Path) -> str:
+    @staticmethod
+    def _read_pdf(path: Path) -> str:
         try:
             from pypdf import PdfReader
 
@@ -50,11 +59,14 @@ class DocumentProcessor:
         except Exception as e:
             return f"Error reading PDF: {e}"
 
-    def _read_docx(self, path: Path) -> str:
+    @staticmethod
+    def _read_docx(path: Path) -> str:
         try:
             from docx import Document
 
             doc = Document(str(path))
-            return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            return "\n\n".join(
+                p.text for p in doc.paragraphs if p.text.strip()
+            )
         except Exception as e:
             return f"Error reading DOCX: {e}"

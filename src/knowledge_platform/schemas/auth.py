@@ -1,34 +1,25 @@
 """Authentication schemas."""
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
-    username: str
-    password: str
-    full_name: str | None = None
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+    email: EmailStr = Field(max_length=254)
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str | None = Field(default=None, max_length=100)
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, v: str) -> str:
-        if len(v) < 3:
-            raise ValueError("Username must be at least 3 characters")
+    def validate_username_alphanumeric(cls, v: str) -> str:
         if not v.isalnum():
             raise ValueError("Username must be alphanumeric")
         return v
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=128)
 
 
 class TokenResponse(BaseModel):
@@ -38,4 +29,4 @@ class TokenResponse(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(max_length=2048)

@@ -18,14 +18,7 @@ class ResearchAgent(BaseAgent):
             previous_research=previous,
         )
 
-        tool_results = []
-        for tool in self.tools:
-            try:
-                result = await tool.execute(query=state["user_query"])
-                if result.success:
-                    tool_results.append(f"[{tool.name}] {result.output}")
-            except Exception as e:
-                tool_results.append(f"[{tool.name}] Error: {e}")
+        tool_results = await self._run_tools(query=state["user_query"])
 
         context = prompt + "\n\nTool Results:\n" + "\n".join(tool_results)
         response = await self.llm.ainvoke(context)

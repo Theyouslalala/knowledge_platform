@@ -1,5 +1,6 @@
 """Embedding generation with OpenAI and local fallback."""
 
+import asyncio
 from abc import ABC, abstractmethod
 
 
@@ -64,17 +65,24 @@ class LocalEmbedder(BaseEmbedder):
             self._model = SentenceTransformer(self._model_name)
 
     async def embed(self, text: str) -> list[float]:
-        self._load_model()
-        return self._model.encode(text).tolist()
+        if self._model is None:
+            await asyncio.to_thread(self._load_model)
+        result = await asyncio.to_thread(self._model.encode, text)
+        return result.tolist()
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        self._load_model()
-        batch_size = 64
-        all_embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            all_embeddings.extend(self._model.encode(batch).tolist())
-        return all_embeddings
+        if self._model is None:
+            await asyncio.to_thread(self._load_model)
+
+        def _encode_batch():
+            batch_size = 64
+            all_embeddings = []
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
+                all_embeddings.extend(self._model.encode(batch).tolist())
+            return all_embeddings
+
+        return await asyncio.to_thread(_encode_batch)
 
     @property
     def dimension(self) -> int:

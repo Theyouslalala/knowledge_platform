@@ -9,21 +9,11 @@ from ..infrastructure.database import async_session_factory
 from ..models.project import Project
 from ..models.task import Task
 from ..schemas.task import TaskCreate, TaskResponse
+from ..core.agents.orchestrator import get_orchestrator
 from .deps import CurrentUser, DatabaseSession
 from .utils import get_user_resource
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
-
-_orchestrator = None
-
-
-def _get_orchestrator():
-    global _orchestrator
-    if _orchestrator is None:
-        from ..core.agents.orchestrator import AgentOrchestrator
-
-        _orchestrator = AgentOrchestrator()
-    return _orchestrator
 
 
 async def _execute_task_background(task_id: str):
@@ -36,7 +26,7 @@ async def _execute_task_background(task_id: str):
             if task is None:
                 return
 
-            orchestrator = _get_orchestrator()
+            orchestrator = get_orchestrator()
             state = await orchestrator.run(task_id=task.id, query=task.title)
 
             task.result = state.get("final_output", "")

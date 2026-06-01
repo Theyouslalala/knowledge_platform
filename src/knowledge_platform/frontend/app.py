@@ -1,11 +1,15 @@
 """Gradio frontend application."""
 
+import uuid
+
 import gradio as gr
 
 from ..config import get_settings
 from ..core.token_tracker import tracker as token_tracker
 
 settings = get_settings()
+
+from ..core.agents.orchestrator import get_orchestrator
 
 
 def create_demo():
@@ -57,11 +61,10 @@ def chat_interface():
         history.append([message, None])
 
         try:
-            from ..core.agents.orchestrator import AgentOrchestrator
-
-            orchestrator = AgentOrchestrator()
+            orchestrator = get_orchestrator()
+            task_id = f"chat_{uuid.uuid4().hex[:8]}"
             state = await orchestrator.run(
-                task_id="demo", query=message, max_iterations=int(max_iter)
+                task_id=task_id, query=message, max_iterations=int(max_iter)
             )
             response = state.get("final_output", "No response generated.")
         except Exception as e:
@@ -80,19 +83,30 @@ def documents_interface():
     gr.Markdown("Upload documents to build a knowledge base for RAG retrieval.")
 
     with gr.Row():
-        file_upload = gr.File(label="Upload Document", file_types=[".txt", ".md", ".pdf", ".docx"])
+        file_upload = gr.File(
+            label="Upload Document", file_types=[".txt", ".md", ".pdf", ".docx"]
+        )
         upload_btn = gr.Button("Upload", variant="primary")
 
     status = gr.Textbox(label="Status", interactive=False)
 
-    def handle_upload(file):
+    async def handle_upload(file):
         if file is None:
             return "No file selected"
         from pathlib import Path
 
         name = Path(file.name).name
         size_kb = Path(file.name).stat().st_size / 1024
-        return f"Uploaded: {name} ({size_kb:.1f} KB) - Document will be processed for RAG retrieval"
+
+        try:
+            from ..core.rag.pipeline import RAGPipeline
+
+            pipeline = RAGPipeline()
+            result = await pipeline.ingest(file.name)
+            chunks = result.get("chunks", 0)
+            return f"Uploaded: {name} ({size_kb:.1f} KB) - {chunks} chunks indexed for RAG"
+        except Exception as e:
+            return f"Upload failed: {e}"
 
     upload_btn.click(handle_upload, [file_upload], [status])
 
@@ -100,7 +114,9 @@ def documents_interface():
 def tasks_interface():
     gr.Markdown("### Task Management")
     with gr.Row():
-        task_input = gr.Textbox(label="Task Description", placeholder="Describe your task...")
+        task_input = gr.Textbox(
+            label="Task Description", placeholder="Describe your task..."
+        )
         task_type = gr.Dropdown(
             choices=["research", "analysis", "writing", "complex"],
             value="complex",
@@ -116,17 +132,17 @@ def tasks_interface():
             return "Please enter a task description.", {}
 
         try:
-            from ..core.agents.orchestrator import AgentOrchestrator
+            from ..core.execution_tracer import tracer as execution_tracer
 
-            orchestrator = AgentOrchestrator()
-            state = await orchestrator.run(task_id="demo_task", query=description)
+            orchestrator = get_orchestrator()
+            task_id = f"task_{uuid.uuid4().hex[:8]}"
+            state = await orchestrator.run(task_id=task_id, query=description)
 
             result = state.get("final_output", "No result")
-            trace_data = {
-                "plan": state.get("plan", ""),
-                "iterations": state.get("iteration", 0),
-                "status": state.get("status", ""),
-            }
+            trace_data = execution_tracer.get_summary(task_id)
+            trace_data["plan"] = state.get("plan", "")
+            trace_data["iterations"] = state.get("iteration", 0)
+            trace_data["status"] = state.get("status", "")
             return result, trace_data
         except Exception as e:
             return f"Error: {e}", {}
@@ -139,9 +155,15 @@ def dashboard_interface():
 
     with gr.Row():
         with gr.Column():
-            total_tokens = gr.Number(label="Total Tokens Used", value=0, interactive=False)
-            total_cost = gr.Number(label="Total Cost (USD)", value=0.0, interactive=False)
-            total_calls = gr.Number(label="Total LLM Calls", value=0, interactive=False)
+            total_tokens = gr.Number(
+                label="Total Tokens Used", value=0, interactive=False
+            )
+            total_cost = gr.Number(
+                label="Total Cost (USD)", value=0.0, interactive=False
+            )
+            total_calls = gr.Number(
+                label="Total LLM Calls", value=0, interactive=False
+            )
 
     refresh_btn = gr.Button("Refresh Stats")
     stats_json = gr.JSON(label="Detailed Breakdown")
@@ -155,7 +177,9 @@ def dashboard_interface():
             summary,
         )
 
-    refresh_btn.click(refresh_stats, outputs=[total_tokens, total_cost, total_calls, stats_json])
+    refresh_btn.click(
+        refresh_stats, outputs=[total_tokens, total_cost, total_calls, stats_json]
+    )
 
 
 def demo_interface():
@@ -167,7 +191,10 @@ def demo_interface():
             "Explain RAG",
             "Explain the concept of Retrieval-Augmented Generation (RAG) and its key components",
         ),
-        ("Compare Chunking", "Compare different text chunking strategies for RAG pipelines"),
+        (
+            "Compare Chunking",
+            "Compare different text chunking strategies for RAG pipelines",
+        ),
         (
             "Multi-Agent Design",
             "What are the key components of a multi-agent system and how do they communicate?",
@@ -178,11 +205,10 @@ def demo_interface():
 
     async def run_demo_example(example_query):
         try:
-            from ..core.agents.orchestrator import AgentOrchestrator
-
-            orchestrator = AgentOrchestrator()
+            orchestrator = get_orchestrator()
+            task_id = f"demo_{uuid.uuid4().hex[:8]}"
             state = await orchestrator.run(
-                task_id="demo_example", query=example_query, max_iterations=2
+                task_id=task_id, query=example_query, max_iterations=2
             )
             return state.get("final_output", "No result generated.")
         except Exception as e:
@@ -191,7 +217,9 @@ def demo_interface():
     for label, query in examples:
         btn = gr.Button(label, variant="secondary")
         btn.click(
-            run_demo_example, inputs=[gr.Textbox(value=query, visible=False)], outputs=[demo_output]
+            run_demo_example,
+            inputs=[gr.Textbox(value=query, visible=False)],
+            outputs=[demo_output],
         )
 
 

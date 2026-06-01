@@ -45,8 +45,9 @@ class ExecutionTracer:
 
     def _trim_tasks(self):
         if len(self._traces) > self.MAX_TASKS:
-            oldest = sorted(self._traces.keys())[: len(self._traces) - self.MAX_TASKS // 2]
-            for key in oldest:
+            keys = list(self._traces.keys())
+            to_remove = len(keys) - self.MAX_TASKS // 2
+            for key in keys[:to_remove]:
                 del self._traces[key]
 
     def agent_start(self, task_id: str, agent_name: str):
