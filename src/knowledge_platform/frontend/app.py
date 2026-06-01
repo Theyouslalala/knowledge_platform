@@ -10,6 +10,16 @@ from ..core.token_tracker import tracker as token_tracker
 settings = get_settings()
 
 from ..core.agents.orchestrator import get_orchestrator
+from ..core.rag.pipeline import RAGPipeline
+
+_rag_pipeline = None
+
+
+def _get_rag_pipeline() -> RAGPipeline:
+    global _rag_pipeline
+    if _rag_pipeline is None:
+        _rag_pipeline = RAGPipeline()
+    return _rag_pipeline
 
 
 def create_demo():
@@ -99,9 +109,7 @@ def documents_interface():
         size_kb = Path(file.name).stat().st_size / 1024
 
         try:
-            from ..core.rag.pipeline import RAGPipeline
-
-            pipeline = RAGPipeline()
+            pipeline = _get_rag_pipeline()
             result = await pipeline.ingest(file.name)
             chunks = result.get("chunks", 0)
             return f"Uploaded: {name} ({size_kb:.1f} KB) - {chunks} chunks indexed for RAG"

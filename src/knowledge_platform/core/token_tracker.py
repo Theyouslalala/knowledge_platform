@@ -85,10 +85,15 @@ class TokenTracker:
         }
 
     def get_total_summary(self) -> dict:
+        total_tokens = 0
+        total_cost = 0.0
+        for r in self._records:
+            total_tokens += r.total_tokens
+            total_cost += r.estimated_cost_usd
         return {
             "total_records": len(self._records),
-            "total_tokens": sum(r.total_tokens for r in self._records),
-            "total_cost": round(sum(r.estimated_cost_usd for r in self._records), 6),
+            "total_tokens": total_tokens,
+            "total_cost": round(total_cost, 6),
         }
 
     def get_records(self, task_id: str = None) -> list[TokenRecord]:

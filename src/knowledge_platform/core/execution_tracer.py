@@ -111,23 +111,33 @@ class ExecutionTracer:
 
     def get_summary(self, task_id: str) -> dict:
         events = self.get_trace(task_id)
+        return self.get_summary_from_events(events)
+
+    @staticmethod
+    def get_summary_from_events(events: list[TraceEvent]) -> dict:
         if not events:
             return {"total_events": 0}
 
         agent_times = {}
+        tool_calls = 0
+        errors = 0
+        agents = set()
+
         for e in events:
+            agents.add(e.agent_name)
             if e.event_type == TraceEventType.AGENT_END and e.duration_ms:
                 agent_times[e.agent_name] = agent_times.get(e.agent_name, 0) + e.duration_ms
-
-        tool_calls = sum(1 for e in events if e.event_type == TraceEventType.TOOL_CALL)
-        errors = sum(1 for e in events if e.event_type == TraceEventType.ERROR)
+            elif e.event_type == TraceEventType.TOOL_CALL:
+                tool_calls += 1
+            elif e.event_type == TraceEventType.ERROR:
+                errors += 1
 
         return {
             "total_events": len(events),
             "tool_calls": tool_calls,
             "errors": errors,
             "agent_times_ms": agent_times,
-            "agents_involved": list(set(e.agent_name for e in events)),
+            "agents_involved": list(agents),
         }
 
 

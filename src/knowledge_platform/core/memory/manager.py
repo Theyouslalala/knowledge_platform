@@ -1,5 +1,7 @@
 """Memory manager coordinating all memory stores."""
 
+import asyncio
+
 from .base import MemoryEntry
 from .long_term import LongTermMemory
 from .short_term import ShortTermMemory
@@ -18,8 +20,10 @@ class MemoryManager:
         self.working = working or WorkingMemory()
 
     async def get_context(self, task_id: str, query: str) -> str:
-        recent = await self.short_term.get_recent(k=10)
-        relevant = await self.long_term.search(query, k=5)
+        recent, relevant = await asyncio.gather(
+            self.short_term.get_recent(k=10),
+            self.long_term.search(query, k=5),
+        )
         task_context = self.working.get_all_context(task_id)
 
         parts = []

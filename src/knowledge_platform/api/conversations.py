@@ -1,6 +1,6 @@
 """Conversation and message API endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
 from ..models.conversation import Conversation
@@ -11,7 +11,7 @@ from ..schemas.message import MessageCreate, MessageResponse
 from .deps import CurrentUser, DatabaseSession
 from .utils import get_user_resource
 
-router = APIRouter(prefix="/conversations", tags=["Conversations"])
+router = APIRouter(tags=["Conversations"])
 
 
 @router.post(

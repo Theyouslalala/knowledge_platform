@@ -1,5 +1,7 @@
 """Full RAG pipeline orchestrator with Agentic RAG features."""
 
+import asyncio
+
 from .chunker import ChunkingStrategy, RecursiveChunker
 from .document_processor import DocumentProcessor
 from .embedder import BaseEmbedder
@@ -114,10 +116,8 @@ class RAGPipeline:
                 return []
 
         if use_expansion:
-            import asyncio as _asyncio
-
             queries = await self.query_expander.expand(query)
-            results_lists = await _asyncio.gather(
+            results_lists = await asyncio.gather(
                 *[self.retriever.retrieve(q, top_k=top_k) for q in queries]
             )
             all_results = [r for sublist in results_lists for r in sublist]
